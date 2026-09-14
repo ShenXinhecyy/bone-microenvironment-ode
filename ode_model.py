@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Core ODE model for bone regeneration microenvironment.
-Three variables: X (inflammation/ROS), Y (osteogenesis), Z (angiogenesis).
-Unified saturation mechanism (Model C).
+Core ODE model for bone regeneration microenvironment (BOLD framework).
+Three variables: X (inflammation/ROS), Y (osteogenesis), Z (metabolic fitness;
+M2-like macrophage + MSC metabolism). Unified saturation mechanism (Model C).
+
 """
 
 import numpy as np
@@ -19,7 +20,7 @@ def hill(x, k, n):
 
 
 def regscore(X, Y, Z):
-    """Regeneration Score: weighted combination of the three variables."""
+    """Composite regenerative score: weighted combination of the three variables."""
     return 0.4 * Z + 0.4 * Y + 0.2 * (1 - X)
 
 
@@ -27,23 +28,12 @@ def ode_system(t, state, params, control):
     """
     ODE system with unified saturation (Model C).
 
-    Parameters
-    ----------
-    state : list [X, Y, Z]
-        Current values of the three variables.
-    params : dict
-        Model parameters (see DEFAULT_PARAMS).
-    control : dict
-        External control parameters (k_ROS, alpha_AMPK, E_matrix).
-
-    Returns
-    -------
-    list [dX, dY, dZ]
-        Time derivatives.
+    state   : [X, Y, Z]
+    params  : 20 model parameters (see DEFAULT_PARAMS_DM)
+    control : external control inputs (k_ROS, alpha_AMPK, E_matrix)
     """
     X, Y, Z = state
 
-    # Unpack parameters
     aX = params['alpha_X']
     bX = params['beta_X']
     gXY = params['gamma_XY']
@@ -59,18 +49,15 @@ def ode_system(t, state, params, control):
     n, m, p, q = params['n'], params['m'], params['p'], params['q']
     KX, KXY, KZ, KX2 = params['K_X'], params['K_XY'], params['K_Z'], params['K_X2']
 
-    # Control inputs
     kROS = control.get('k_ROS', 0.0)
     aAMPK = control.get('alpha_AMPK', 0.0)
     Emat = control.get('E_matrix', 0.0)
 
-    # Hill functions
     H_X = hill(X, KX, n)
     H_Y = hill(Y, KXY, m)
     H_Z = hill(Z, KZ, q)
     H_X2 = hill(X, KX2, p)
 
-    # ODE equations (Model C: unified saturation)
     dX = aX * H_X * (1 - X) - bX * X - gXY * H_Y * X - gZX * H_Z * X - kROS * X
     dY = (aYb + gYZ * Z + bY * Y + Emat) * (1 - Y) - kXY * H_X2 * Y - dY_ * Y
     dZ = -gZXd * X * Z + (aZ * (1 - X) + bZ * Z + aAMPK) * (1 - Z)
@@ -78,7 +65,8 @@ def ode_system(t, state, params, control):
     return [dX, dY, dZ]
 
 
-# Default parameters for Diabetes Mellitus (DM) model
+# Default parameters for Diabetes Mellitus (DM) model — 20 parameters
+# (12 rate/coupling constants + 4 Hill coefficients + 4 half-activation constants)
 DEFAULT_PARAMS_DM = {
     'alpha_X': 0.80, 'beta_X': 0.15,
     'gamma_XY': 0.35, 'gamma_ZX': 0.30,
@@ -88,32 +76,12 @@ DEFAULT_PARAMS_DM = {
     'alpha_Z': 0.05, 'beta_Z': 0.08,
     'gamma_ZX_damage': 0.30,
     'n': 2.5, 'm': 2.0, 'p': 2.5, 'q': 2.0,
-    'K_X': 0.35, 'K_XY': 0.45, 'K_Z': 0.45, 'K_X2': 0.35
+    'K_X': 0.35, 'K_XY': 0.45, 'K_Z': 0.42, 'K_X2': 0.35
 }
 
 
 def simulate(params, control, init_state, t_span=(0, 200), t_eval=None):
-    """
-    Run a single simulation.
-
-    Parameters
-    ----------
-    params : dict
-        Model parameters.
-    control : dict
-        Control parameters.
-    init_state : list [X0, Y0, Z0]
-        Initial conditions.
-    t_span : tuple
-        Time span (default 0 to 200).
-    t_eval : array-like or None
-        Time points to evaluate.
-
-    Returns
-    -------
-    sol : OdeSolution
-        Solution object from solve_ivp.
-    """
+    """Run a single simulation (RK45, rtol=1e-8)."""
     if t_eval is None:
         t_eval = np.linspace(t_span[0], t_span[1], 10)
 
