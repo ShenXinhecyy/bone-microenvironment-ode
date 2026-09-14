@@ -1,58 +1,49 @@
-# Bone Microenvironment ODE Model
+# BOLD Model Code — Bone Microenvironment Dynamical Model
 
-A three-variable ODE model describing the bone regeneration microenvironment, featuring X (inflammation/ROS), Y (osteogenesis), and Z (angiogenesis) dynamics with bistability and bifurcation behavior.
+Companion code for: "Breaking the Inflammatory Attractor: Quantitative Design
+Rules for Smart Biomaterials from Integrated Evidence Synthesis and Dynamical
+Modelling" (*Bone Research* submission).
 
-## Model Equations
-
-The model uses a unified saturation mechanism (Model C — the final corrected version):
-
-```
-dX/dt = αX·Hill(X)·(1−X) − βX·X − γXY·Hill(Y)·X − γZX·Hill(Z)·X − kROS·X
-dY/dt = (αYb + γYZ·Z + βY·Y + Emat)·(1−Y) − κXY·Hill(X)·Y − δY·Y
-dZ/dt = −γZXd·X·Z + (αZ·(1−X) + βZ·Z + αAMPK)·(1−Z)
-```
-
-### Variables
-- **X** — Inflammation/ROS level (0–1)
-- **Y** — Osteogenesis/bone formation activity (0–1)
-- **Z** — Angiogenesis/vascularization (0–1)
-
-### Control Parameters
-- `k_ROS` — ROS clearance rate (therapeutic)
-- `alpha_AMPK` — AMPK activation (metabolic rescue)
-- `E_matrix` — Extracellular matrix stiffness (mechanical support)
-
-### RegScore (Regeneration Score)
-```
-RegScore = 0.4·Z + 0.4·Y + 0.2·(1−X)
-```
+The BOLD (Bistable Osteo-immune Logic for Design) model is a three-variable
+nonlinear ODE system — X (pro-inflammatory activity), Y (pro-osteogenic
+activity), Z (metabolic fitness) — with 20 parameters and 3 control inputs
+(k_ROS, alpha_AMPK, E_matrix). Current parameterisation version: v5
+(K_Z = 0.42; sole change from v4, placing the saddle-node fold at
+k_ROS* = 0.333 by equilibrium continuation).
 
 ## Files
 
-| File | Description |
-|------|-------------|
-| `ode_model.py` | Core ODE system with Hill function and unified saturation |
-| `bistability_test.py` | Test for bistability across initial conditions |
-| `bifurcation_scan.py` | Bifurcation analysis with k_ROS as control parameter |
-| `pathology_comparison.py` | Cross-pathology comparison (Healthy, Diabetes, Osteoporosis, Osteomyelitis) |
-| `strategy_comparison.py` | Therapeutic strategy comparison (ROS, AMPK, Stiffness) |
-| `requirements.txt` | Python dependencies |
+| File | Purpose |
+|---|---|
+| `ode_model.py` | Core ODE system, default diabetic parameter set (v5), simulator, RegScore |
+| `bistability_test.py` | Confirms two distinct attractors from different initial states |
+| `bifurcation_scan.py` | Three-branch equilibrium continuation (Newton + bisection); fold k_ROS* = 0.333; finite-time grid cross-check (0.338) |
+| `hysteresis_analysis.py` | Forward/reverse continuation; shows no reverse fold down to k_ROS = -0.3 (permanence of the transition) |
+| `monte_carlo_robustness.py` | 10 000-run ±20% uniform parameter perturbation (seed 42); fold maintained in 9 999/10 000 sets; Spearman rank sensitivity |
+| `sensitivity_sweeps.py` | One-at-a-time control-authority sweeps (k_ROS 0.80 > alpha_AMPK 0.44 > E_matrix 0.18) |
+| `strategy_comparison.py` | Push–Pull strategy comparison (none 0.12; ROS(0.5) 0.92; ROS(0.3)+AMPK 0.92 vs additive 0.72; Triple 0.94) |
+| `pathology_comparison.py` | Cross-pathology gains: OM +0.84, DM +0.82, OP +0.80 |
+| `monte_carlo_folds.csv` | Fold locations from the 9 999 valid Monte Carlo runs (Supplementary Data S2) |
 
-## Usage
+## Quick start
 
 ```bash
 pip install -r requirements.txt
 python bistability_test.py
 python bifurcation_scan.py
-python pathology_comparison.py
+python hysteresis_analysis.py
 python strategy_comparison.py
+python pathology_comparison.py
+python sensitivity_sweeps.py
+python monte_carlo_robustness.py   # ~2-3 min
 ```
 
-## Model Versions
+## Reproduced headline results (K_Z = 0.42)
 
-Three versions were developed and compared:
-- **Model A** — Original (no saturation terms, unbounded risk)
-- **Model B** — Paper version (partial saturation)
-- **Model C** — Unified saturation (final, most stable)
-
-Model C is the recommended version.
+- Bistability at diabetic baseline; inflammatory attractor RS = 0.12
+- Saddle-node fold: equilibrium continuation 0.333; finite-time grid 0.338
+- Reverse continuation: no fold above k_ROS = -0.3 → permanent transition
+- Monte Carlo (n = 10 000, seed 42): mean k_ROS* = 0.333, SD = 0.125,
+  95% percentile interval 0.12–0.59; dominant parameters K_X (ρ = -0.65)
+  and alpha_X (ρ = +0.64)
+- Sub-threshold synergy: ROS(0.3)+AMPK = 0.92 vs naive additive 0.72
